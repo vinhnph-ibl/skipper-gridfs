@@ -20,33 +20,44 @@ const bucket = (db, bucketOptions) => {
 
 module.exports = function SkipperGridFS(globalOptions) {
     const options = globalOptions || {};
-    const { metadata } = globalOptions 
+    const { metadata } = globalOptions
 
     _.defaults(options, {
         uri: 'mongodb://localhost:27017/mydatabase'
     });
 
     const adapter = {};
-    adapter.rm = (fd, cb) => {
-        const errorHandler = (err, client) => {
-            if (client) client.close();
-            if (cb) cb(err);
+    adapter.rm = (fd) => {
+      return new Promise((resolve) => {
+        const errorHandler = (error, client) => {
+          if (client) client.close();
+          /* eslint-disable */
+          resolve({ error })
         }
 
         client(options.uri, options.mongoOptions, (err, client) => {
-            if (err) {
-                errorHandler(err, client);
-            }
+          if (err) {
+            errorHandler(err, client);
+          }
 
-            bucket(client.db(), options.bucketOptions).delete(fd, (err) => errorHandler(err, client));
-            if (cb) cb();
+          bucket(client.db(), options.bucketOptions).delete(fd, function(err){
+            if(err){
+              errorHandler(err, client)
+             }
+             else{
+              resolve({})
+             }
+          });
+
         });
+      })
     }
 
-    adapter.ls = (dirpath, cb) => {
-        const errorHandler = (err, client) => {
-            if (client) client.close();
-            if (cb) cb(err);
+    adapter.ls = (filterOptions = {}) => {
+      return new Promise((resolve) => {
+        const errorHandler = (error, client) => {
+          if (client) client.close();
+          resolve({ error })
         }
 
         const __transform__ = Transform({ objectMode: true });
@@ -64,7 +75,7 @@ module.exports = function SkipperGridFS(globalOptions) {
                 errorHandler(err, client);
             }
 
-            const stream = bucket(client.db(), options.bucketOptions).find({ 'metadata.dirname': dirpath }).transformStream();
+            const stream = bucket(client.db(), options.bucketOptions).find(filterOptions).transformStream();
             stream.once('error', (err) => {
                 errorHandler(err, client);
             });
@@ -76,13 +87,10 @@ module.exports = function SkipperGridFS(globalOptions) {
             stream.pipe(__transform__);
         });
 
-        if (cb) {
-            __transform__.pipe(concat((data) => {
-                return cb(null, Array.isArray(data) ? data : [data]);
-            }));
-        } else {
-            return __transform__;
-        }
+        __transform__.pipe(concat((data) => {
+          resolve({ data: Array.isArray(data) ? data : [data] })
+        }));
+      })
     }
 
     adapter.read = (fd, cb) => {
