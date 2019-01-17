@@ -20,6 +20,7 @@ const bucket = (db, bucketOptions) => {
 
 module.exports = function SkipperGridFS(globalOptions) {
     const options = globalOptions || {};
+    const { metadata } = globalOptions 
 
     _.defaults(options, {
         uri: 'mongodb://localhost:27017/mydatabase'
@@ -147,7 +148,8 @@ module.exports = function SkipperGridFS(globalOptions) {
                     metadata: {
                         filename: filename,
                         fd: fd,
-                        dirname: __newFile.dirname || path.dirname(fd)
+                        dirname: __newFile.dirname || path.dirname(fd),
+                        ...metadata
                     },
                     contentType: mime.getType(fd)
                 });
